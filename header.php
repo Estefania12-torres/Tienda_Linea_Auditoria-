@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/session_security.php';
+start_secure_session();
 
 ?>
 
@@ -262,7 +263,9 @@ session_start();
 		<!-- /HEADER -->
 		<nav id='navigation'>
 			<!-- container -->
-			<div class="container" id="get_category_home">
+			<div class="container">
+				<a href="a03.php" style="display:inline-block;padding:10px 0;color:#1E1F29;font-weight:700;">A03 · Seguridad de dependencias</a>
+				<div id="get_category_home">
 				<!-- <div id="responsive-nav">
 						
 					<ul class="main-nav nav navbar-nav">
@@ -278,6 +281,7 @@ session_start();
 					</ul>
 						
 				</div> -->
+				</div>
 			</div>
 			<!-- /container -->
 		</nav>

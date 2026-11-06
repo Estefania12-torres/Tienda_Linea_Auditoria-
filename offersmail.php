@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/session_security.php';
+start_secure_session();
 include "db.php";
 if (isset($_POST["email"])) {
     $email = $_POST['email'];

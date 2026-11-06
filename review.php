@@ -1,6 +1,7 @@
 <?php
 // Se inicia la sesión para identificar al usuario que está dejando la reseña.
-session_start();
+require_once __DIR__ . '/session_security.php';
+start_secure_session();
 
 // Se conecta con la base de datos para guardar la valoración del producto.
 include "db.php";
@@ -44,7 +45,6 @@ if (isset($_POST["review"])) {
 	}
 }
 ?>
-
 
 
 

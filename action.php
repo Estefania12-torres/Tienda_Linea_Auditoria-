@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/session_security.php';
+start_secure_session();
 $ip_add = getenv("REMOTE_ADDR");
 include "db.php";
 
@@ -769,7 +770,6 @@ if (isset($_POST["updateCartItem"])) {
 
 
 ?>
-
 
 
 

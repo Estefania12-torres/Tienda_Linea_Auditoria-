@@ -1,7 +1,8 @@
 
 <?php
 // Se inicia la sesión para mantener el contexto del usuario actual.
-session_start();
+require_once __DIR__ . '/session_security.php';
+start_secure_session();
 
 // Se obtiene la IP del cliente para gestionar carritos anónimos si el usuario no ha iniciado sesión.
 $ip_add = getenv("REMOTE_ADDR");

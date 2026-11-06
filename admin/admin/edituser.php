@@ -1,6 +1,8 @@
 
     <?php
-session_start();
+require_once dirname(__DIR__, 2) . '/session_security.php';
+require_once dirname(__DIR__, 2) . '/password_security.php';
+start_secure_session();
 include("../../db.php");
 $user_id=$_REQUEST['user_id'];
 
@@ -11,9 +13,26 @@ if(isset($_POST['btn_save']))
 $first_name=$_POST['first_name'];
 $last_name=$_POST['last_name'];
 $email=$_POST['email'];
-$user_password=$_POST['password'];
+$user_password = isset($_POST['password']) ? $_POST['password'] : '';
 
-mysqli_query($con,"update user_info set first_name='$first_name', last_name='$last_name', email='$email', password='$user_password' where user_id='$user_id'")or die("Query 2 is inncorrect..........");
+if ($user_password === '') {
+  $update_statement = mysqli_prepare($con, 'UPDATE user_info SET first_name = ?, last_name = ?, email = ? WHERE user_id = ?');
+  if ($update_statement === false || !mysqli_stmt_bind_param($update_statement, 'ssss', $first_name, $last_name, $email, $user_id) || !mysqli_stmt_execute($update_statement)) {
+    throw new RuntimeException('Unable to update the user.');
+  }
+} else {
+  $password_hash = hash_project_password($user_password);
+  $update_statement = mysqli_prepare($con, 'UPDATE user_info SET first_name = ?, last_name = ?, email = ?, password = ? WHERE user_id = ?');
+  if ($update_statement === false || !mysqli_stmt_bind_param($update_statement, 'sssss', $first_name, $last_name, $email, $password_hash, $user_id) || !mysqli_stmt_execute($update_statement)) {
+    throw new RuntimeException('Unable to update the user and password.');
+  }
+  $backup_statement = mysqli_prepare($con, 'UPDATE user_info_backup SET password = ? WHERE user_id = ?');
+  if ($backup_statement === false || !mysqli_stmt_bind_param($backup_statement, 'ss', $password_hash, $user_id) || !mysqli_stmt_execute($backup_statement)) {
+    throw new RuntimeException('Unable to update the backup password.');
+  }
+  mysqli_stmt_close($backup_statement);
+}
+mysqli_stmt_close($update_statement);
 
 header("location: manageuser.php");
 mysqli_close($con);
@@ -54,7 +73,7 @@ include "topheader.php";
                     <div class="col-md-12 ">
                       <div class="form-group">
                         <label >Password</label>
-                        <input type="text" name="password" id="password" class="form-control" value="<?php echo $user_password; ?>">
+                        <input type="password" name="password" id="password" class="form-control" autocomplete="new-password" placeholder="Leave blank to keep current password">
                       </div>
                     </div>
                   

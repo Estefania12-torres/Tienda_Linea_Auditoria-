@@ -3,7 +3,13 @@
 include "db.php";
 
 // Inicia la sesión para guardar sesión del usuario.
-session_start();
+require_once __DIR__ . '/session_security.php';
+require_once __DIR__ . '/password_security.php';
+start_secure_session();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    begin_login_attempt('storefront');
+}
 
 // Login script begins here.
 // Si las credenciales ingresadas coinciden con los datos de la base, se devuelve "login_success".
@@ -16,14 +22,15 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
 	$password = $_POST["password"];
 
 	// Busca si el email y la contraseña coinciden en la tabla de usuarios normales.
-	$sql = "SELECT * FROM user_info WHERE email = '$email' AND password = '$password'";
+	$sql = "SELECT * FROM user_info WHERE email = '$email' LIMIT 1";
 	$run_query = mysqli_query($con,$sql);
-	$count = mysqli_num_rows($run_query);
     $row = mysqli_fetch_array($run_query);
 
     // Si el usuario viene desde el carrito, existe una cookie con productos guardados.
     // Se aprovecha esa cookie para migrar ese carrito al usuario recién logueado.
-	if($count == 1){
+	if($row && verify_and_upgrade_password($con, 'user_info', 'user_id', $row['user_id'], $row['password'], $password)){
+            record_login_attempt('storefront', true);
+            session_regenerate_id(true);
 			if (isset($_COOKIE["product_list"])) {
 				$p_list = stripcslashes($_COOKIE["product_list"]);
 				// Decodifica la cookie JSON guardada con los IDs de productos del carrito.
@@ -77,16 +84,16 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
 		}else{
                 // Si no encontró al usuario normal, intenta iniciar sesión como administrador.
                 $email = mysqli_real_escape_string($con,$_POST["email"]);
-                $password =md5($_POST["password"]) ;
-                $sql = "SELECT * FROM admin_info WHERE admin_email = '$email' AND admin_password = '$password'";
+                $sql = "SELECT * FROM admin_info WHERE admin_email = '$email' LIMIT 1";
                 $run_query = mysqli_query($con,$sql);
-                $count = mysqli_num_rows($run_query);
+                $admin = mysqli_fetch_array($run_query);
 
             // Si el administrador existe en la base, se crea su sesión.
-            if($count == 1){
-                $row = mysqli_fetch_array($run_query);
-                $_SESSION["uid"] = $row["admin_id"];
-                $_SESSION["name"] = $row["admin_name"];
+            if($admin && verify_and_upgrade_password($con, 'admin_info', 'admin_id', $admin['admin_id'], $admin['admin_password'], $_POST["password"])){
+                record_login_attempt('storefront', true);
+                session_regenerate_id(true);
+                $_SESSION["uid"] = $admin["admin_id"];
+                $_SESSION["name"] = $admin["admin_name"];
                 $ip_add = getenv("REMOTE_ADDR");
 
                 // Si el login fue exitoso, responde con login_success y redirige al panel del admin.
@@ -95,10 +102,13 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
                 exit;
 
             }else{
+                record_login_attempt('storefront', false);
                 // Si no existe ni usuario ni administrador, se informa al usuario que debe registrarse.
                 echo "<span style='color:red;'>Please register before login..!</span>";
                 exit();
             }
 	}
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    record_login_attempt('storefront', false);
 }
 ?>

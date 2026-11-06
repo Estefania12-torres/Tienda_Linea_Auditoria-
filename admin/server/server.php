@@ -1,5 +1,7 @@
 <?php
-session_start();
+require_once dirname(__DIR__, 2) . '/session_security.php';
+require_once dirname(__DIR__, 2) . '/password_security.php';
+start_secure_session();
 ?>
 
 <?php
@@ -13,7 +15,8 @@ $errors = array();
 $reg_date = date("Y/m/d");
 
 // connect to the database
-$db = mysqli_connect('localhost', 'root', '', 'onlineshop');
+require_once __DIR__ . '/../../db.php';
+$db = $con;
 
 
 // REGISTER USER
@@ -21,8 +24,8 @@ if (isset($_POST['reg_user'])) {
   // receive all input values from the form
   $username = mysqli_real_escape_string($db, $_POST['admin_name']);
   $email = mysqli_real_escape_string($db, $_POST['admin_email']);
-  $password_1 = mysqli_real_escape_string($db, $_POST['password_1']);
-  $password_2 = mysqli_real_escape_string($db, $_POST['password_2']);
+  $password_1 = $_POST['password_1'];
+  $password_2 = $_POST['password_2'];
 
   // form validation: ensure that the form is correctly filled ...
   // by adding (array_push()) corresponding error unto $errors array
@@ -51,7 +54,7 @@ if (isset($_POST['reg_user'])) {
 
   // Finally, register user if there are no errors in the form
   if (count($errors) == 0) {
-    $password = md5($password_1);//encrypt the password before saving in the database
+    $password = hash_project_password($password_1);
 
     $query = "INSERT INTO admin_info (admin_name, admin_email, admin_password)
           VALUES('$username', '$email', '$password')";
@@ -70,8 +73,9 @@ if (isset($_POST['reg_user'])) {
 
 
 if (isset($_POST['login_admin'])) {
+  begin_login_attempt('admin-form');
   $admin_username = mysqli_real_escape_string($db, $_POST['admin_username']);
-  $password = mysqli_real_escape_string($db, $_POST['password']);
+  $password = $_POST['password'];
 
   if (empty($admin_username)) {
     array_push($errors, "Username is required");
@@ -81,20 +85,24 @@ if (isset($_POST['login_admin'])) {
   }
 
   if (count($errors) == 0) {
-    $password = md5($password);
-    $query = "SELECT * FROM admin_info WHERE admin_email='$admin_username' AND admin_password='$password'";
+    $query = "SELECT * FROM admin_info WHERE admin_email='$admin_username' LIMIT 1";
     $results = mysqli_query($db, $query);
-    if (mysqli_num_rows($results) == 1) {
-       $_SESSION['admin_email'] = $email;
+    $admin = mysqli_fetch_assoc($results);
+    if ($admin && verify_and_upgrade_password($db, 'admin_info', 'admin_id', $admin['admin_id'], $admin['admin_password'], $password)) {
+       record_login_attempt('admin-form', true);
+       session_regenerate_id(true);
+       $_SESSION['admin_email'] = $admin_username;
       $_SESSION['admin_name'] = $admin_username;
       $_SESSION['success'] = "You are now logged in";
       header('location: ./admin/');
     }else {
+      record_login_attempt('admin-form', false);
       array_push($errors, "Wrong username/password combination");
     }
+  } else {
+    record_login_attempt('admin-form', false);
   }
 }
 
 
 ?>
-

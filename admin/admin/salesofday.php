@@ -1,6 +1,7 @@
 
     <?php
-session_start();
+require_once dirname(__DIR__, 2) . '/session_security.php';
+start_secure_session();
 include("./includes/db.php");
 
 error_reporting(0);

@@ -1,6 +1,7 @@
 <?php
 // Inicia la sesión para poder acceder a las variables guardadas del usuario.
-session_start();
+require_once __DIR__ . '/session_security.php';
+start_secure_session();
 
 // Elimina la sesión del usuario autenticado.
 unset($_SESSION["uid"]);

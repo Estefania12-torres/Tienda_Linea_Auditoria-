@@ -1,6 +1,8 @@
 <?php
 // Se inicia la sesión para guardar la información del usuario que recién se registra.
-session_start();
+require_once __DIR__ . '/session_security.php';
+require_once __DIR__ . '/password_security.php';
+start_secure_session();
 
 // Se conecta con la base de datos para guardar al usuario nuevo.
 include "db.php";
@@ -96,6 +98,7 @@ if (isset($_POST["f_name"])) {
 				<b>password is not same</b>
 			</div>
 		";
+			exit();
 		}
 
 		// Se valida que el móvil sea numérico.
@@ -134,11 +137,12 @@ if (isset($_POST["f_name"])) {
 			exit();
 		} else {
 			// Si no existe, se inserta el usuario en la base de datos.
+			$password_hash = hash_project_password($password);
 			$sql = "INSERT INTO `user_info` 
 			(`user_id`, `first_name`, `last_name`, `email`, 
 			`password`, `mobile`, `address1`, `address2`) 
 			VALUES (NULL, '$f_name', '$l_name', '$email', 
-			'$password', '$mobile', '$address1', '$address2')";
+			'$password_hash', '$mobile', '$address1', '$address2')";
 			$run_query = mysqli_query($con,$sql);
 
 			// Guarda la sesión del nuevo usuario para dejarlo logueado.
@@ -157,9 +161,6 @@ if (isset($_POST["f_name"])) {
 	}
 }
 ?>
-
-
-
 
 
 
