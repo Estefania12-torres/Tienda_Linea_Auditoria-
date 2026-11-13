@@ -3,11 +3,8 @@
 require_once __DIR__ . '/session_security.php';
 start_secure_session();
 
-// Elimina la sesión del usuario autenticado.
-unset($_SESSION["uid"]);
-
-// Elimina el nombre del usuario de la sesión.
-unset($_SESSION["name"]);
+$_SESSION = array();
+session_destroy();
 
 // Guarda la página desde la cual el usuario llegó antes de cerrar sesión.
 // Esto permite volver a la última página visitada si existe.

@@ -1,14 +1,23 @@
 
-    <?php
-require_once dirname(__DIR__, 2) . '/session_security.php';
+<?php
+require_once __DIR__ . '/admin_access.php';
 require_once dirname(__DIR__, 2) . '/password_security.php';
-start_secure_session();
+require_admin_access();
 include("../../db.php");
-$user_id=$_REQUEST['user_id'];
+$user_id = filter_var(
+    isset($_POST['user_id']) ? $_POST['user_id'] : (isset($_GET['user_id']) ? $_GET['user_id'] : null),
+    FILTER_VALIDATE_INT
+);
+if ($user_id === false || $user_id === null || $user_id < 1) {
+  http_response_code(400);
+  exit('Invalid user identifier.');
+}
+$csrf_token = admin_csrf_token();
 
 
 if(isset($_POST['btn_save'])) 
 {
+require_admin_csrf_token();
 
 $first_name=$_POST['first_name'];
 $last_name=$_POST['last_name'];
@@ -36,6 +45,7 @@ mysqli_stmt_close($update_statement);
 
 header("location: manageuser.php");
 mysqli_close($con);
+exit;
 }
 include "sidenav.php";
 include "topheader.php";
@@ -51,7 +61,8 @@ include "topheader.php";
               <form action="edituser.php" name="form" method="post" enctype="multipart/form-data">
               <div class="card-body">
                 
-                  <input type="hidden" name="user_id" id="user_id" value="<?php echo $user_id;?>" />
+                  <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                  <input type="hidden" name="user_id" id="user_id" value="<?php echo (int) $user_id; ?>" />
                     <div class="col-md-12 ">
                       <div class="form-group">
                         <label>First name</label>

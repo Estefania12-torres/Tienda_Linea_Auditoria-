@@ -29,6 +29,25 @@ function start_secure_session()
     ));
 
     session_start();
+
+    $now = time();
+    $last_activity = isset($_SESSION['_session_last_activity'])
+        ? (int) $_SESSION['_session_last_activity']
+        : $now;
+    $created_at = isset($_SESSION['_session_created_at'])
+        ? (int) $_SESSION['_session_created_at']
+        : $now;
+
+    if ($now - $last_activity > 900 || $now - $created_at > 28800) {
+        $_SESSION = array();
+        if (!session_regenerate_id(true)) {
+            throw new RuntimeException('Unable to renew an expired session.');
+        }
+        $created_at = $now;
+    }
+
+    $_SESSION['_session_created_at'] = $created_at;
+    $_SESSION['_session_last_activity'] = $now;
 }
 
 function login_attempt_store($bucket, $operation)

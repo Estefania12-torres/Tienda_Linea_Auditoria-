@@ -1,29 +1,15 @@
 
-    <?php
-require_once dirname(__DIR__, 2) . '/session_security.php';
-start_secure_session();
+<?php
+require_once __DIR__ . '/admin_access.php';
+require_admin_access();
 include("./includes/db.php");
 
-error_reporting(0);
-if(isset($_GET['action']) && $_GET['action']!="" && $_GET['action']=='delete')
-{
-$order_id=$_GET['order_id'];
+$requested_page = isset($_GET['page']) ? $_GET['page'] : '1';
+$page = ctype_digit((string) $requested_page) && (int) $requested_page > 0
+    ? (int) $requested_page
+    : 1;
 
-/*this is delet query*/
-mysqli_query($con,"delete from orders where order_id='$order_id'")or die("delete query is incorrect...");
-} 
-
-///pagination
-$page=$_GET['page'];
-
-if($page=="" || $page=="1")
-{
-$page1=0; 
-}
-else
-{
-$page1=($page*10)-10; 
-}
+$page1 = ($page - 1) * 10;
 
 include "sidenav.php";
 include "topheader.php";

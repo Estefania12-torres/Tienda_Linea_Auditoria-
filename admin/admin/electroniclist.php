@@ -1,40 +1,30 @@
 <?php
-require_once dirname(__DIR__, 2) . '/session_security.php';
-start_secure_session();
+require_once __DIR__ . '/admin_access.php';
+require_admin_access();
 include("../../db.php");
 error_reporting(0);
-if(isset($_GET['action']) && $_GET['action']!="" && $_GET['action']=='delete')
-{
-$product_id=$_GET['product_id'];
-///////picture delete/////////
-$result=mysqli_query($con,"select product_image from products where product_id='$product_id'")
-or die("query is incorrect...");
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    require_admin_csrf_token();
+    $product_id = filter_var(isset($_POST['product_id']) ? $_POST['product_id'] : null, FILTER_VALIDATE_INT);
+    if ($product_id === false || $product_id === null || $product_id < 1) {
+        http_response_code(400);
+        exit('Invalid product identifier.');
+    }
 
-list($picture)=mysqli_fetch_array($result);
-$path="../product_images/$picture";
-
-if(file_exists($path)==true)
-{
-  unlink($path);
-}
-else
-{}
-/*this is delet query*/
-mysqli_query($con,"delete from products where product_id='$product_id'")or die("query is incorrect...");
+    delete_admin_product($con, $product_id);
+    header('Location: electroniclist.php');
+    exit;
 }
 
+$csrf_token = admin_csrf_token();
 ///pagination
 
-$page=$_GET['page'];
+$requested_page = isset($_GET['page']) ? $_GET['page'] : '1';
+$page = ctype_digit((string) $requested_page) && (int) $requested_page > 0
+    ? (int) $requested_page
+    : 1;
 
-if($page=="" || $page=="1")
-{
-$page1=0;	
-}
-else
-{
-$page1=($page*10)-10;	
-} 
+$page1 = ($page - 1) * 10;
 include "sidenav.php";
 include "topheader.php";
 ?>
@@ -71,10 +61,15 @@ include "topheader.php";
 
                         while(list($product_id,$image,$product_name,$price)=mysqli_fetch_array($result))
                         {
-                        echo "<tr><td><img src='../product_images/$image' style='width:50px; height:50px; border:groove #000'></td><td>$product_name</td>
+                        echo "<tr><td><img src='../../product_images/$image' style='width:50px; height:50px; border:groove #000'></td><td>$product_name</td>
                         <td>$price</td>
                         <td>
-                        <a class=' btn btn-success' href='clothes_list.php?product_id=$product_id&action=delete'>Delete</a>
+                        <form method='post' action='electroniclist.php'>
+                        <input type='hidden' name='csrf_token' value='" . htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') . "'>
+                        <input type='hidden' name='action' value='delete'>
+                        <input type='hidden' name='product_id' value='" . (int) $product_id . "'>
+                        <button class='btn btn-danger' type='submit'>Delete</button>
+                        </form>
                         </td></tr>";
                         }
 

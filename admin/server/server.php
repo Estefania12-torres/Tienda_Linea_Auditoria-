@@ -1,6 +1,7 @@
 <?php
 require_once dirname(__DIR__, 2) . '/session_security.php';
 require_once dirname(__DIR__, 2) . '/password_security.php';
+require_once dirname(__DIR__) . '/admin/admin_access.php';
 start_secure_session();
 ?>
 
@@ -21,6 +22,12 @@ $db = $con;
 
 // REGISTER USER
 if (isset($_POST['reg_user'])) {
+  if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    http_response_code(403);
+    exit('Only an authenticated administrator can create another administrator.');
+  }
+  require_admin_csrf_token();
+
   // receive all input values from the form
   $username = mysqli_real_escape_string($db, $_POST['admin_name']);
   $email = mysqli_real_escape_string($db, $_POST['admin_email']);
@@ -61,9 +68,11 @@ if (isset($_POST['reg_user'])) {
     mysqli_query($db, $query);
     $_SESSION['admin_name'] = $username;
     $_SESSION['admin_email'] = $email;
+    $_SESSION['role'] = 'admin';
 
     $_SESSION['success'] = "You are now logged in";
     header('location: ./admin/');
+    exit;
   }
 }
 
@@ -90,11 +99,18 @@ if (isset($_POST['login_admin'])) {
     $admin = mysqli_fetch_assoc($results);
     if ($admin && verify_and_upgrade_password($db, 'admin_info', 'admin_id', $admin['admin_id'], $admin['admin_password'], $password)) {
        record_login_attempt('admin-form', true);
-       session_regenerate_id(true);
+       if (!session_regenerate_id(true)) {
+         throw new RuntimeException('Unable to renew the authenticated session.');
+       }
+       $_SESSION['_session_created_at'] = time();
+       $_SESSION['_session_last_activity'] = time();
+       unset($_SESSION['admin_csrf_token']);
+       $_SESSION['role'] = 'admin';
        $_SESSION['admin_email'] = $admin_username;
-      $_SESSION['admin_name'] = $admin_username;
+      $_SESSION['admin_name'] = $admin['admin_name'];
       $_SESSION['success'] = "You are now logged in";
       header('location: ./admin/');
+      exit;
     }else {
       record_login_attempt('admin-form', false);
       array_push($errors, "Wrong username/password combination");

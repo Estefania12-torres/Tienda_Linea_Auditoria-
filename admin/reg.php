@@ -1,4 +1,5 @@
 <?php include("./server/server.php"); ?>
+<?php $csrf_token = admin_csrf_token(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,6 +25,7 @@
                     <div class="signup-form">
                         <h2 class="form-title">Admin register Here</h2>
                         <form method="post" class="register-form" id="register-form" action="login.php">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                              <div class="alert alert-danger"><h4 id="e_msg"><?php include('./server/errors.php'); ?></h4></div>
                             <div class="form-group">
                                 <label for="name"><i class="zmdi zmdi-account material-icons-name"></i></label>

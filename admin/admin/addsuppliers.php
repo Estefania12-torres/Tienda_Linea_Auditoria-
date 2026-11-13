@@ -1,12 +1,12 @@
- <?php
-require_once dirname(__DIR__, 2) . '/session_security.php';
+<?php
+require_once __DIR__ . '/admin_access.php';
 require_once dirname(__DIR__, 2) . '/password_security.php';
-start_secure_session();
+require_admin_access();
 include("../../db.php");
-include "sidenav.php";
-include "topheader.php";
+$csrf_token = admin_csrf_token();
 if(isset($_POST['btn_save']))
 {
+require_admin_csrf_token();
 $first_name=$_POST['first_name'];
 $last_name=$_POST['last_name'];
 $email=$_POST['email'];
@@ -20,6 +20,8 @@ mysqli_query($con,"insert into user_info(first_name, last_name,email,password,mo
 mysqli_close($con);
 }
 
+include "sidenav.php";
+include "topheader.php";
 
 ?>
       <!-- End Navbar -->
@@ -34,6 +36,7 @@ mysqli_close($con);
                 </div>
                 <div class="card-body">
                   <form action="" method="post" name="form" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <div class="row">
                       
                       <div class="col-md-3">

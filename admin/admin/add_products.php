@@ -1,11 +1,13 @@
 <?php
-require_once dirname(__DIR__, 2) . '/session_security.php';
-start_secure_session();
+require_once __DIR__ . '/admin_access.php';
+require_admin_access();
 include("../../db.php");
 
+$csrf_token = admin_csrf_token();
 
 if(isset($_POST['btn_save']))
 {
+require_admin_csrf_token();
 $product_name=$_POST['product_name'];
 $details=$_POST['details'];
 $price=$_POST['price'];
@@ -30,6 +32,7 @@ if($picture_type=="image/jpeg" || $picture_type=="image/jpg" || $picture_type=="
 mysqli_query($con,"insert into products (product_cat, product_brand,product_title,product_price, product_desc, product_image,product_keywords) values ('$product_type','$brand','$product_name','$price','$details','$pic_name','$tags')") or die ("query incorrect");
 
  header("location: sumit_form.php?success=1");
+ exit;
 }
 
 mysqli_close($con);
@@ -41,6 +44,7 @@ include "topheader.php";
       <div class="content">
         <div class="container-fluid">
           <form action="" method="post" type="form" name="form" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
           <div class="row">
           
                 

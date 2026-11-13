@@ -1,16 +1,38 @@
 <?php
-require_once dirname(__DIR__, 2) . '/session_security.php';
-start_secure_session();
+require_once __DIR__ . '/admin_access.php';
+require_admin_access();
 include("../../db.php");
 
-$product_id=$_REQUEST['product_id'];
+$product_id = filter_var(
+    isset($_POST['product_id']) ? $_POST['product_id'] : (isset($_GET['product_id']) ? $_GET['product_id'] : null),
+    FILTER_VALIDATE_INT
+);
+if ($product_id === false || $product_id === null || $product_id < 1) {
+    http_response_code(400);
+    exit('Invalid product identifier.');
+}
+$csrf_token = admin_csrf_token();
 
-$result=mysqli_query($con,"SELECT `product_id`, `product_cat`, `product_brand`, `product_title`, `product_price`, `product_desc`, `product_image`, `product_keywords` from products  where product_id='$product_id'") or die ("query 1 incorrect.......");
-
-list($product_id,$product_type,$brand,$product_name,$price,$details,$pic_name,$tags)=mysqli_fetch_array($result);
+$product_statement = mysqli_prepare($con, 'SELECT product_id, product_cat, product_brand, product_title, product_price, product_desc, product_image, product_keywords FROM products WHERE product_id = ?');
+if ($product_statement === false || !mysqli_stmt_bind_param($product_statement, 'i', $product_id) || !mysqli_stmt_execute($product_statement)) {
+    throw new RuntimeException('Unable to retrieve the requested product.');
+}
+$stored_product_id = $product_type = $brand = $product_name = $price = $details = $pic_name = $tags = null;
+if (!mysqli_stmt_bind_result($product_statement, $stored_product_id, $product_type, $brand, $product_name, $price, $details, $pic_name, $tags)) {
+    throw new RuntimeException('Unable to read the requested product.');
+}
+if (mysqli_stmt_fetch($product_statement) === false) {
+    throw new RuntimeException('Unable to fetch the requested product.');
+}
+if ($stored_product_id === null) {
+    http_response_code(404);
+    exit('Product not found.');
+}
+mysqli_stmt_close($product_statement);
 
 if(isset($_POST['btn_save']))
 {
+require_admin_csrf_token();
 $product_name=$_POST['product_name'];
 $details=$_POST['details'];
 $price=$_POST['price'];
@@ -35,12 +57,14 @@ if($picture_type=="image/jpeg" || $picture_type=="image/jpg" || $picture_type=="
         `product_cat`= '$product_type',`product_brand`='$brand',
         `product_price`='$price',`product_desc`='$details',`product_image`='$pic_name',`product_keywords`='$tags' WHERE `product_id` = '$product_id'") or die("Query 2 is inncorrect..........");
     header("location: products_list.php");
+    exit;
    
 }else{
     mysqli_query($con,"UPDATE `products` SET `product_title` = '$product_name', 
         `product_cat`= '$product_type',`product_brand`='$brand',
         `product_price`='$price',`product_desc`='$details',`product_image`='$pic_name',`product_keywords`='$tags' WHERE `product_id` = '$product_id'") or die("Query 2 is inncorrect..........");
     header("location: products_list.php");
+    exit;
 }
 
 
@@ -53,6 +77,8 @@ include "topheader.php";
       <div class="content">
         <div class="container-fluid">
           <form action="" method="post" type="form" name="form" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+          <input type="hidden" name="product_id" value="<?php echo (int) $product_id; ?>">
           <div class="row">
           
                 

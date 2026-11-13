@@ -1,11 +1,13 @@
 
-  <?php
- require_once dirname(__DIR__, 2) . '/session_security.php';
+<?php
+ require_once __DIR__ . '/admin_access.php';
  require_once dirname(__DIR__, 2) . '/password_security.php';
- start_secure_session();
+ require_admin_access();
 include("./includes/db.php");
+$csrf_token = admin_csrf_token();
 if (isset($_POST['re_password']))
   {
+    require_admin_csrf_token();
     $email=$_SESSION['admin_email'];
 
   $old_pass = $_POST['old_pass'];
@@ -52,6 +54,7 @@ include "topheader.php";
                 </div>
                 <div class="card-body">
                   <form method="post" action="profile.php">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <div class="row">
                       <div class="col-md-5">
                         <div class="form-group bmd-form-group">

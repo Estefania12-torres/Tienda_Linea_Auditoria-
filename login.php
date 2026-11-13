@@ -30,7 +30,17 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
     // Se aprovecha esa cookie para migrar ese carrito al usuario recién logueado.
 	if($row && verify_and_upgrade_password($con, 'user_info', 'user_id', $row['user_id'], $row['password'], $password)){
             record_login_attempt('storefront', true);
-            session_regenerate_id(true);
+            if (!session_regenerate_id(true)) {
+                throw new RuntimeException('Unable to renew the authenticated session.');
+            }
+            $_SESSION['_session_created_at'] = time();
+            $_SESSION['_session_last_activity'] = time();
+            unset($_SESSION['admin_csrf_token']);
+            $_SESSION["role"] = "user";
+            unset($_SESSION["admin_name"], $_SESSION["admin_email"]);
+            $_SESSION["uid"] = $row["user_id"];
+            $_SESSION["name"] = $row["first_name"];
+            $ip_add = getenv("REMOTE_ADDR");
 			if (isset($_COOKIE["product_list"])) {
 				$p_list = stripcslashes($_COOKIE["product_list"]);
 				// Decodifica la cookie JSON guardada con los IDs de productos del carrito.
@@ -59,8 +69,6 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
             // Si el login es normal, se guardan los datos en la sesión.
 			$_SESSION["uid"] = $row["user_id"];
 			$_SESSION["name"] = $row["first_name"];
-			$ip_add = getenv("REMOTE_ADDR");
-
             // Actualiza los registros del carrito y wishlist para asociarlos al usuario autenticado.
 			$sql = "UPDATE cart SET user_id = '$_SESSION[uid]' WHERE ip_add='$ip_add' AND user_id = -1";
 			$wishlist_sql = "UPDATE wishlist SET user_id = '$_SESSION[uid]' WHERE ip_add='$ip_add' AND user_id = -1";
@@ -91,7 +99,15 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
             // Si el administrador existe en la base, se crea su sesión.
             if($admin && verify_and_upgrade_password($con, 'admin_info', 'admin_id', $admin['admin_id'], $admin['admin_password'], $_POST["password"])){
                 record_login_attempt('storefront', true);
-                session_regenerate_id(true);
+                if (!session_regenerate_id(true)) {
+                    throw new RuntimeException('Unable to renew the authenticated session.');
+                }
+                $_SESSION['_session_created_at'] = time();
+                $_SESSION['_session_last_activity'] = time();
+                unset($_SESSION['admin_csrf_token']);
+                $_SESSION["role"] = "admin";
+                $_SESSION["admin_name"] = $admin["admin_name"];
+                $_SESSION["admin_email"] = $admin["admin_email"];
                 $_SESSION["uid"] = $admin["admin_id"];
                 $_SESSION["name"] = $admin["admin_name"];
                 $ip_add = getenv("REMOTE_ADDR");

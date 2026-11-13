@@ -146,6 +146,14 @@ if (isset($_POST["f_name"])) {
 			$run_query = mysqli_query($con,$sql);
 
 			// Guarda la sesión del nuevo usuario para dejarlo logueado.
+			if (!session_regenerate_id(true)) {
+				throw new RuntimeException('Unable to renew the authenticated session.');
+			}
+			$_SESSION['_session_created_at'] = time();
+			$_SESSION['_session_last_activity'] = time();
+			unset($_SESSION['admin_csrf_token']);
+			$_SESSION["role"] = "user";
+			unset($_SESSION["admin_name"], $_SESSION["admin_email"]);
 			$_SESSION["uid"] = mysqli_insert_id($con);
 			$_SESSION["name"] = $f_name;
 

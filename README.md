@@ -14,7 +14,11 @@ Para ocultar la version de Apache, configura en el `httpd.conf` del servidor (no
 
 ## Sesiones y limite de intentos de inicio de sesion
 
-Las sesiones usan cookies `HttpOnly` y `SameSite=Strict`, y activan el modo estricto de PHP. `Secure` se habilita automaticamente en HTTPS; define `SESSION_SECURE_COOKIE=true` en el entorno si TLS termina en un proxy y PHP no detecta HTTPS, o `false` solo para desarrollo HTTP local. Los manejadores de inicio de sesion permiten cinco intentos por IP en 15 minutos; el siguiente responde HTTP 429. Los fallos y bloqueos se registran en el log de errores de PHP; el contador temporal se guarda fuera del directorio publico en el directorio temporal del sistema.
+Las sesiones usan cookies `HttpOnly` y `SameSite=Strict`, y activan el modo estricto de PHP. `Secure` se habilita automaticamente en HTTPS; define `SESSION_SECURE_COOKIE=true` en el entorno si TLS termina en un proxy, o `false` solo para desarrollo HTTP local. Las sesiones vencen despues de 15 minutos de inactividad o 8 horas de duracion total. Los inicios de sesion regeneran el ID de sesion y el cierre de sesion borra sus datos.
+
+El panel administrativo valida el rol `admin` en cada ruta y exige tokens CSRF en las operaciones POST protegidas. El registro publico de administradores esta deshabilitado: la cuenta inicial debe provisionarse mediante un procedimiento administrativo confiable antes de usar el panel. Los manejadores de inicio de sesion permiten cinco intentos por IP en 15 minutos; el siguiente responde HTTP 429. Los fallos y bloqueos se registran en el log de errores de PHP; el contador temporal se guarda fuera del directorio publico en el directorio temporal del sistema.
+
+`payment_success.php` no registra pedidos hasta que se configure y valide la respuesta del proveedor de pagos en el servidor. Actualmente responde con HTTP 503 para una confirmacion que no pueda verificarse; no uses este callback para pagos reales.
 
 ## Roles de base de datos
 

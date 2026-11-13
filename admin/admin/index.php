@@ -1,7 +1,7 @@
 
-    <?php
-require_once dirname(__DIR__, 2) . '/session_security.php';
-start_secure_session();
+<?php
+require_once __DIR__ . '/admin_access.php';
+require_admin_access();
 include("../../db.php");
 
 include "sidenav.php";
@@ -35,15 +35,15 @@ include "activitity.php";
                 <div class="table-responsive ps">
                   <table class="table table-hover tablesorter " id="">
                     <thead class=" text-primary">
-                        <tr><th>ID</th><th>FirstName</th><th>LastName</th><th>Email</th><th>Password</th><th>Contact</th><th>Address</th><th>City</th>
+                        <tr><th>ID</th><th>FirstName</th><th>LastName</th><th>Email</th><th>Contact</th><th>Address</th><th>City</th>
                     </tr></thead>
                     <tbody>
                       <?php 
-                        $result=mysqli_query($con,"select * from user_info")or die ("query 1 incorrect.....");
+                        $result=mysqli_query($con,"select user_id,first_name,last_name,email,mobile,address1,address2 from user_info")or die ("query 1 incorrect.....");
 
-                        while(list($user_id,$first_name,$last_name,$email,$password,$phone,$address1,$address2)=mysqli_fetch_array($result))
+                        while(list($user_id,$first_name,$last_name,$email,$phone,$address1,$address2)=mysqli_fetch_array($result))
                         {	
-                        echo "<tr><td>$user_id</td><td>$first_name</td><td>$last_name</td><td>$email</td><td>$password</td><td>$phone</td><td>$address1</td><td>$address2</td>
+                        echo "<tr><td>$user_id</td><td>$first_name</td><td>$last_name</td><td>$email</td><td>$phone</td><td>$address1</td><td>$address2</td>
 
                         </tr>";
                         }

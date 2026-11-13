@@ -1,29 +1,38 @@
 
-    <?php
-require_once dirname(__DIR__, 2) . '/session_security.php';
-start_secure_session();
+<?php
+require_once __DIR__ . '/admin_access.php';
+require_admin_access();
 include("./includes/db.php");
 
-error_reporting(0);
-if(isset($_GET['action']) && $_GET['action']!="" && $_GET['action']=='delete')
-{
-$order_id=$_GET['order_id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    require_admin_csrf_token();
+    $order_id = filter_var(isset($_POST['order_id']) ? $_POST['order_id'] : null, FILTER_VALIDATE_INT);
+    if ($order_id === false || $order_id === null || $order_id < 1) {
+        http_response_code(400);
+        exit('Invalid order identifier.');
+    }
 
-/*this is delet query*/
-mysqli_query($con,"delete from orders where order_id='$order_id'")or die("delete query is incorrect...");
-} 
-
-///pagination
-$page=$_GET['page'];
-
-if($page=="" || $page=="1")
-{
-$page1=0;	
+    $delete_statement = mysqli_prepare($con, 'DELETE FROM orders WHERE order_id = ?');
+    if (
+        $delete_statement === false
+        || !mysqli_stmt_bind_param($delete_statement, 'i', $order_id)
+        || !mysqli_stmt_execute($delete_statement)
+    ) {
+        throw new RuntimeException('Unable to delete the requested order.');
+    }
+    mysqli_stmt_close($delete_statement);
+    header('Location: orders.php');
+    exit;
 }
-else
-{
-$page1=($page*10)-10;	
-}
+
+$csrf_token = admin_csrf_token();
+
+$requested_page = isset($_GET['page']) ? $_GET['page'] : '1';
+$page = ctype_digit((string) $requested_page) && (int) $requested_page > 0
+    ? (int) $requested_page
+    : 1;
+
+$page1 = ($page - 1) * 10;
 
 include "sidenav.php";
 include "topheader.php";
@@ -51,10 +60,12 @@ include "topheader.php";
                         while(list($order_id,$p_names,$cus_name,$contact_no,$email,$address,$country,$details,$zip_code,$time,$quantity)=mysqli_fetch_array($result))
                         {	
                         echo "<tr><td>$cus_name</td><td>$p_names</td><td>$email<br>$contact_no</td><td>$address<br>ZIP: $zip_code<br>$country</td><td>$details</td><td>$quantity</td><td>$time</td>
-
-                        <td>
-                        <a class=' btn btn-danger' href='orders.php?order_id=$order_id&action=delete'>Delete</a>
-                        </td></tr>";
+                        <td><form method='post' action='orders.php'>
+                        <input type='hidden' name='csrf_token' value='" . htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') . "'>
+                        <input type='hidden' name='action' value='delete'>
+                        <input type='hidden' name='order_id' value='" . (int) $order_id . "'>
+                        <button class='btn btn-danger' type='submit'>Delete</button>
+                        </form></td></tr>";
                         }
                         ?>
                     </tbody>
