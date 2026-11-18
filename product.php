@@ -57,17 +57,26 @@ include "header.php";
 					
 					<?php 
 								include 'db.php';
-								$product_id = $_GET['p'];
-								
-								$sql = " SELECT * FROM products AS P,categories AS C WHERE P.product_cat = C.cat_id  AND P.product_id = '$product_id'";
-								if (!$con) {
-									die("Connection failed: " . mysqli_connect_error());
+								$product_id = filter_var($_GET['p'], FILTER_VALIDATE_INT);
+								if ($product_id === false) {
+									http_response_code(400);
+									exit('Invalid product identifier.');
 								}
-								$result = mysqli_query($con, $sql);
+
+								$stmt_product = mysqli_prepare($con,
+									"SELECT * FROM products AS P,categories AS C
+									 WHERE P.product_cat = C.cat_id AND P.product_id = ?"
+								);
+								mysqli_stmt_bind_param($stmt_product, "i", $product_id);
+								mysqli_stmt_execute($stmt_product);
+								$result = mysqli_stmt_get_result($stmt_product);
 								if (mysqli_num_rows($result) > 0) 
 								{
 									while($row = mysqli_fetch_assoc($result)) 
 									{
+									$product_title_safe = htmlspecialchars($row['product_title'], ENT_QUOTES, 'UTF-8');
+									$product_image_safe = htmlspecialchars($row['product_image'], ENT_QUOTES, 'UTF-8');
+									$cat_name_safe = htmlspecialchars($row['cat_title'], ENT_QUOTES, 'UTF-8');
 									echo '
 									
                                     
@@ -75,19 +84,19 @@ include "header.php";
                                 <div class="col-md-5 col-md-push-2">
                                 <div id="product-main-img">
                                     <div class="product-preview">
-                                        <img src="product_images/'.$row['product_image'].'" alt="">
+                                        <img src="product_images/'.$product_image_safe.'" alt="">
                                     </div>
 
                                     <div class="product-preview">
-                                        <img src="product_images/'.$row['product_image'].'" alt="">
+                                        <img src="product_images/'.$product_image_safe.'" alt="">
                                     </div>
 
                                     <div class="product-preview">
-                                        <img src="product_images/'.$row['product_image'].'" alt="">
+                                        <img src="product_images/'.$product_image_safe.'" alt="">
                                     </div>
 
                                     <div class="product-preview">
-                                        <img src="product_images/'.$row['product_image'].'" alt="">
+                                        <img src="product_images/'.$product_image_safe.'" alt="">
                                     </div>
                                 </div>
                             </div>
@@ -125,7 +134,7 @@ include "header.php";
                                    
 							<div class="col-md-5">
 								<div class="product-details">
-									<h2 class="product-name">'.$row['product_title'].'</h2>
+									<h2 class="product-name">'.$product_title_safe.'</h2>
 									<div id = "rating_reviews">
 										
 									</div>
@@ -173,7 +182,7 @@ include "header.php";
 
 									<ul class="product-links">
 										<li>Category:</li>
-										<li><a href="#">'.$row["cat_title"].'</a></li>
+										<li><a href="#">'.$cat_name_safe.'</a></li>
 									</ul>
 
 									<ul class="product-links">
@@ -201,11 +210,13 @@ include "header.php";
 								<li><a data-toggle="tab" href="#tab2">Details</a></li>
 								<?php
 												include 'db.php';
-												$product_id = $_GET['p'];
-									
-												$product_query = "SELECT COUNT(*) AS count FROM reviews WHERE product_id='$product_id'";
-												$run_query = mysqli_query($con,$product_query);
-												$row = mysqli_fetch_array($run_query);
+												$reviews_stmt = mysqli_prepare($con,
+													"SELECT COUNT(*) AS count FROM reviews WHERE product_id=?"
+												);
+												mysqli_stmt_bind_param($reviews_stmt, "i", $product_id);
+												mysqli_stmt_execute($reviews_stmt);
+												$reviews_query = mysqli_stmt_get_result($reviews_stmt);
+												$row = mysqli_fetch_array($reviews_query);
 												$reviews_count=$row["count"];
 												echo '<li><a data-toggle="tab" href="#tab3">Reviews ('.$reviews_count.')</a></li>';
 								?>
@@ -248,7 +259,6 @@ include "header.php";
 													<input class="input" type="text" name="name" placeholder="Your Name" required>
 													<input class="input" type="email" name="email" placeholder="Your Email" required>
 													<?php 
-														$product_id = $_GET['p'];
 														echo'<input  name="product_id" value="'.$product_id.'" hidden required>'
 													?>
 													
@@ -299,10 +309,15 @@ include "header.php";
                     
 								<?php
                     include 'db.php';
-								$product_id = $_GET['p'];
                     
-					$product_query = "SELECT * FROM products,categories WHERE product_cat=cat_id AND product_id BETWEEN $product_id AND $product_id+3";
-                $run_query = mysqli_query($con,$product_query);
+					$product_query = "SELECT * FROM products,categories
+						WHERE product_cat=cat_id AND product_id BETWEEN ? AND ?";
+					$related_end = $product_id + 3;
+					$related_stmt = mysqli_prepare($con, $product_query);
+					mysqli_stmt_bind_param($related_stmt, "ii", $product_id, $related_end);
+					mysqli_stmt_execute($related_stmt);
+					$product_query_result = mysqli_stmt_get_result($related_stmt);
+                $run_query = $product_query_result;
                 if(mysqli_num_rows($run_query) > 0){
 
                     while($row = mysqli_fetch_array($run_query)){
@@ -332,8 +347,12 @@ include "header.php";
 										<h3 class='product-name header-cart-item-name'><a href='product.php?p=$pro_id'>$pro_title</a></h3>
 										<h4 class='product-price header-cart-item-info'>$pro_price<del class='product-old-price'>$990.00</del></h4>
 										<div class='product-rating'>";
-										$rating_query = "SELECT ROUND(AVG(rating),1) AS avg_rating  FROM reviews WHERE product_id='$pro_id '";
-										$run_review_query = mysqli_query($con,$rating_query);
+										$rating_stmt = mysqli_prepare($con,
+											"SELECT ROUND(AVG(rating),1) AS avg_rating FROM reviews WHERE product_id=?"
+										);
+										mysqli_stmt_bind_param($rating_stmt, "i", $pro_id);
+										mysqli_stmt_execute($rating_stmt);
+										$run_review_query = mysqli_stmt_get_result($rating_stmt);
 										$review_row = mysqli_fetch_array($run_review_query);
 										
 										if($review_row > 0){

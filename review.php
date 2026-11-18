@@ -18,8 +18,10 @@ if (isset($_POST["review"])) {
     $datetime =  date('Y-m-d H:i:s');
 
 	// Se busca si ya existe una reseña de ese email para ese producto.
-	$sql = "SELECT review_id FROM reviews WHERE email = '$email' AND product_id = '$product_id' ";
-	$check_query = mysqli_query($con,$sql);
+	$stmt_check = mysqli_prepare($con, "SELECT review_id FROM reviews WHERE email = ? AND product_id = ?");
+	mysqli_stmt_bind_param($stmt_check, "si", $email, $product_id);
+	mysqli_stmt_execute($stmt_check);
+	$check_query = mysqli_stmt_get_result($stmt_check);
 	$count_email = mysqli_num_rows($check_query);
 	if($count_email > 0){
 		echo "
@@ -31,11 +33,14 @@ if (isset($_POST["review"])) {
 		exit();
 	}else{
 		// Si no existe reseña previa, la inserta en la tabla de reviews.
-		$sql = "INSERT INTO `reviews` (`review_id`, `product_id`, `name`, `email`, `review`, `datetime`, `rating`) 
-		VALUES  (NULL, '$product_id','$name', '$email', 
-		'$review','$datetime', '$rating')";
-		
-		if(mysqli_query($con,$sql)){
+		$stmt_insert = mysqli_prepare($con,
+			"INSERT INTO `reviews`
+			(`review_id`, `product_id`, `name`, `email`, `review`, `datetime`, `rating`)
+			VALUES (NULL, ?, ?, ?, ?, ?, ?)"
+		);
+		mysqli_stmt_bind_param($stmt_insert, "isssss", $product_id, $name, $email, $review, $datetime, $rating);
+
+		if(mysqli_stmt_execute($stmt_insert)){
 			echo "Thanks for Better reach ";
 			echo "<script> location.href='product.php?q=$product_id'; </script>";
 			exit;

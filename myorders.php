@@ -31,8 +31,15 @@ include "header.php";
                 if (isset($_SESSION["uid"])) {
                     // Consulta SQL que une productos, detalles de la orden y la cabecera de la orden.
                     // Busca todas las compras hechas por el usuario actual, ordenadas por la más reciente primero.
-                    $sql="SELECT c.order_id,a.product_id,a.product_title,a.product_price,a.product_image,b.qty,b.amt,c.total_amt FROM products a,order_products b,orders_info c WHERE a.product_id=b.product_id AND c.user_id='$_SESSION[uid]' AND b.order_id=c.order_id ORDER BY `c`.`order_id` DESC";
-                    $query = mysqli_query($con,$sql);
+                    $stmt_orders = mysqli_prepare($con,
+                        "SELECT c.order_id,a.product_id,a.product_title,a.product_price,a.product_image,b.qty,b.amt,c.total_amt
+                         FROM products a,order_products b,orders_info c
+                         WHERE a.product_id=b.product_id AND c.user_id=? AND b.order_id=c.order_id
+                         ORDER BY c.order_id DESC"
+                    );
+                    mysqli_stmt_bind_param($stmt_orders, "i", $_SESSION["uid"]);
+                    mysqli_stmt_execute($stmt_orders);
+                    $query = mysqli_stmt_get_result($stmt_orders);
 
                     // Se muestran los items sólo si existen registros para este usuario.
                     if (mysqli_num_rows($query) > 0) {
@@ -53,6 +60,8 @@ include "header.php";
                             $amt=$row["amt"];
                             $total_amt=$row["total_amt"];
                             $order_id=$row["order_id"];
+                            $product_title_safe = htmlspecialchars($product_title, ENT_QUOTES, 'UTF-8');
+                            $product_image_safe = htmlspecialchars($product_image, ENT_QUOTES, 'UTF-8');
 
                             // Si es el primer producto o pertenece al mismo pedido anterior,
                             // se imprime un bloque con la información del producto y el estado.
@@ -66,9 +75,9 @@ include "header.php";
                                     <tr>
                                     <div class="infoWrap"> 
                                         <div class="cartSection">
-                                        <img src="product_images/'.$product_image.'" alt="'.$product_title.'" class="itemImg" />
+                                        <img src="product_images/'.$product_image_safe.'" alt="'.$product_title_safe.'" class="itemImg" />
                                         <p class="itemNumber">#'.$product_id.'</p>
-                                        <h3>'.$product_title.'</h3>
+                                        <h3>'.$product_title_safe.'</h3>
                                         
                                         <p> '.$qty.' x &#x20B9; '.$product_price.'</p>
                                         

@@ -17,13 +17,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Verifica si llegaron los datos de email y password por POST.
 if(isset($_POST["email"]) && isset($_POST["password"])){
-	// Escapa caracteres especiales para evitar inyección SQL simple.
-	$email = mysqli_real_escape_string($con,$_POST["email"]);
+	$email = $_POST["email"];
 	$password = $_POST["password"];
 
 	// Busca si el email y la contraseña coinciden en la tabla de usuarios normales.
-	$sql = "SELECT * FROM user_info WHERE email = '$email' LIMIT 1";
-	$run_query = mysqli_query($con,$sql);
+	$stmt = mysqli_prepare($con, "SELECT * FROM user_info WHERE email = ? LIMIT 1");
+	mysqli_stmt_bind_param($stmt, "s", $email);
+	mysqli_stmt_execute($stmt);
+	$run_query = mysqli_stmt_get_result($stmt);
     $row = mysqli_fetch_array($run_query);
 
     // Si el usuario viene desde el carrito, existe una cookie con productos guardados.
@@ -47,16 +48,31 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
 				$product_list = json_decode($p_list,true);
 				for ($i=0; $i < count($product_list); $i++) { 
 						// Verifica si ese producto ya está asociado a este usuario.
-						$verify_cart = "SELECT id FROM cart WHERE user_id = $_SESSION[uid] AND p_id = ".$product_list[$i];
-						$result  = mysqli_query($con,$verify_cart);
+						$uid = $_SESSION["uid"];
+						$product_id = filter_var($product_list[$i], FILTER_VALIDATE_INT);
+						if ($product_id === false) {
+							continue;
+						}
+						$verify_stmt = mysqli_prepare($con,
+							"SELECT id FROM cart WHERE user_id=? AND p_id=?"
+						);
+						mysqli_stmt_bind_param($verify_stmt, "ii", $uid, $product_id);
+						mysqli_stmt_execute($verify_stmt);
+						$result = mysqli_stmt_get_result($verify_stmt);
 						if(mysqli_num_rows($result) < 1){
 							// Si es la primera vez que se agrega ese producto, se actualiza el usuario del carrito.
-							$update_cart = "UPDATE cart SET user_id = '$_SESSION[uid]' WHERE ip_add = '$ip_add' AND user_id = -1";
-							mysqli_query($con,$update_cart);
+							$update_cart_stmt = mysqli_prepare($con,
+								"UPDATE cart SET user_id=? WHERE ip_add=? AND user_id=-1"
+							);
+							mysqli_stmt_bind_param($update_cart_stmt, "is", $uid, $ip_add);
+							mysqli_stmt_execute($update_cart_stmt);
 						}else{
 							// Si ya existe, elimina la copia antigua del carrito anónimo.
-							$delete_existing_product = "DELETE FROM cart WHERE user_id = -1 AND ip_add = '$ip_add' AND p_id = ".$product_list[$i];
-							mysqli_query($con,$delete_existing_product);
+							$delete_stmt = mysqli_prepare($con,
+								"DELETE FROM cart WHERE user_id=-1 AND ip_add=? AND p_id=?"
+							);
+							mysqli_stmt_bind_param($delete_stmt, "si", $ip_add, $product_id);
+							mysqli_stmt_execute($delete_stmt);
 						}
 				}
 				// Borra la cookie para evitar duplicados.
@@ -70,12 +86,20 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
 			$_SESSION["uid"] = $row["user_id"];
 			$_SESSION["name"] = $row["first_name"];
             // Actualiza los registros del carrito y wishlist para asociarlos al usuario autenticado.
-			$sql = "UPDATE cart SET user_id = '$_SESSION[uid]' WHERE ip_add='$ip_add' AND user_id = -1";
-			$wishlist_sql = "UPDATE wishlist SET user_id = '$_SESSION[uid]' WHERE ip_add='$ip_add' AND user_id = -1";
-			if(mysqli_query($con,$sql)){
+			$uid = $_SESSION["uid"];
+			$cart_stmt = mysqli_prepare($con,
+				"UPDATE cart SET user_id=? WHERE ip_add=? AND user_id=-1"
+			);
+			mysqli_stmt_bind_param($cart_stmt, "is", $uid, $ip_add);
+			$cart_ok = mysqli_stmt_execute($cart_stmt);
+			$wishlist_stmt = mysqli_prepare($con,
+				"UPDATE wishlist SET user_id=? WHERE ip_add=? AND user_id=-1"
+			);
+			mysqli_stmt_bind_param($wishlist_stmt, "is", $uid, $ip_add);
+			if($cart_ok){
 				echo "login_success";
 				$BackToMyPage = $_SERVER['HTTP_REFERER'];
-				if(mysqli_query($con,$wishlist_sql)){
+				if(mysqli_stmt_execute($wishlist_stmt)){
 						if(!isset($BackToMyPage)) {
 							header('Location: '.$BackToMyPage);
 							echo"<script type='text/javascript'>
@@ -91,10 +115,12 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
 
 		}else{
                 // Si no encontró al usuario normal, intenta iniciar sesión como administrador.
-                $email = mysqli_real_escape_string($con,$_POST["email"]);
-                $sql = "SELECT * FROM admin_info WHERE admin_email = '$email' LIMIT 1";
-                $run_query = mysqli_query($con,$sql);
-                $admin = mysqli_fetch_array($run_query);
+                $email = $_POST["email"];
+                $stmt_admin = mysqli_prepare($con, "SELECT * FROM admin_info WHERE admin_email = ? LIMIT 1");
+                mysqli_stmt_bind_param($stmt_admin, "s", $email);
+                mysqli_stmt_execute($stmt_admin);
+                $run_query_admin = mysqli_stmt_get_result($stmt_admin);
+                $admin = mysqli_fetch_array($run_query_admin);
 
             // Si el administrador existe en la base, se crea su sesión.
             if($admin && verify_and_upgrade_password($con, 'admin_info', 'admin_id', $admin['admin_id'], $admin['admin_password'], $_POST["password"])){

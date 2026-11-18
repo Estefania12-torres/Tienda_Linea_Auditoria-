@@ -124,8 +124,10 @@ if (isset($_POST["f_name"])) {
 		}
 
 		// Se verifica si ya existe un usuario con ese email en la base de datos.
-		$sql = "SELECT user_id FROM user_info WHERE email = '$email' LIMIT 1" ;
-		$check_query = mysqli_query($con,$sql);
+		$stmt_check = mysqli_prepare($con, "SELECT user_id FROM user_info WHERE email = ? LIMIT 1");
+		mysqli_stmt_bind_param($stmt_check, "s", $email);
+		mysqli_stmt_execute($stmt_check);
+		$check_query = mysqli_stmt_get_result($stmt_check);
 		$count_email = mysqli_num_rows($check_query);
 		if($count_email > 0){
 			echo "
@@ -138,12 +140,24 @@ if (isset($_POST["f_name"])) {
 		} else {
 			// Si no existe, se inserta el usuario en la base de datos.
 			$password_hash = hash_project_password($password);
-			$sql = "INSERT INTO `user_info` 
-			(`user_id`, `first_name`, `last_name`, `email`, 
-			`password`, `mobile`, `address1`, `address2`) 
-			VALUES (NULL, '$f_name', '$l_name', '$email', 
-			'$password_hash', '$mobile', '$address1', '$address2')";
-			$run_query = mysqli_query($con,$sql);
+			$stmt_insert = mysqli_prepare($con,
+				"INSERT INTO `user_info`
+				(`user_id`, `first_name`, `last_name`, `email`,
+				`password`, `mobile`, `address1`, `address2`)
+				VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)"
+			);
+			mysqli_stmt_bind_param(
+				$stmt_insert,
+				"sssssss",
+				$f_name,
+				$l_name,
+				$email,
+				$password_hash,
+				$mobile,
+				$address1,
+				$address2
+			);
+			$run_query = mysqli_stmt_execute($stmt_insert);
 
 			// Guarda la sesión del nuevo usuario para dejarlo logueado.
 			if (!session_regenerate_id(true)) {
@@ -159,8 +173,12 @@ if (isset($_POST["f_name"])) {
 
 			// Si tenía productos en un carrito anónimo por IP, los asocia a su usuario.
 			$ip_add = getenv("REMOTE_ADDR");
-			$sql = "UPDATE cart SET user_id = '$_SESSION[uid]' WHERE ip_add='$ip_add' AND user_id = -1";
-			if(mysqli_query($con,$sql)){
+			$uid = $_SESSION["uid"];
+			$update_cart_stmt = mysqli_prepare($con,
+				"UPDATE cart SET user_id=? WHERE ip_add=? AND user_id=-1"
+			);
+			mysqli_stmt_bind_param($update_cart_stmt, "is", $uid, $ip_add);
+			if(mysqli_stmt_execute($update_cart_stmt)){
 				echo "register_success";
 				echo "<script> location.href='store.php'; </script>";
                 exit;

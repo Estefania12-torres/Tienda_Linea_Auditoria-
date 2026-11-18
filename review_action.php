@@ -12,15 +12,23 @@ include "db.php";
 
 // Si se solicita mostrar la sección completa de reseñas y valoración.
 if(isset($_POST["review_action"])){
-    $p_id = $_POST["proId"];
+    $p_id = filter_var($_POST["proId"], FILTER_VALIDATE_INT);
+    if ($p_id === false) {
+        http_response_code(400);
+        exit('Invalid product identifier.');
+    }
 
     // Se imprime el bloque del resumen general de valoraciones del producto.
     echo'<div class="col-md-3">
         <div id="rating">';  
 
             // Consulta para obtener el promedio y la cantidad total de reseñas del producto.
-            $rating_query = "SELECT ROUND(AVG(rating),1) AS avg_rating, COUNT(*) AS count FROM reviews WHERE product_id='$p_id'";
-            $run_query = mysqli_query($con,$rating_query);
+            $rating_stmt = mysqli_prepare($con,
+                "SELECT ROUND(AVG(rating),1) AS avg_rating, COUNT(*) AS count FROM reviews WHERE product_id=?"
+            );
+            mysqli_stmt_bind_param($rating_stmt, "i", $p_id);
+            mysqli_stmt_execute($rating_stmt);
+            $run_query = mysqli_stmt_get_result($rating_stmt);
             $row = mysqli_fetch_array($run_query);
             $r_count = $row['count'];
 
@@ -53,8 +61,12 @@ if(isset($_POST["review_action"])){
                 $total_stars= 0;
                 $rat=1;
                 while ($rat <= 5){
-                        $rating_query = "SELECT  COUNT(*) as count FROM reviews WHERE product_id='$p_id' AND rating='$rat'";
-                        $run_query = mysqli_query($con,$rating_query);
+                        $rating_stmt = mysqli_prepare($con,
+                            "SELECT COUNT(*) AS count FROM reviews WHERE product_id=? AND rating=?"
+                        );
+                        mysqli_stmt_bind_param($rating_stmt, "ii", $p_id, $rat);
+                        mysqli_stmt_execute($rating_stmt);
+                        $run_query = mysqli_stmt_get_result($rating_stmt);
                         $row = mysqli_fetch_array($run_query);
                         if($row > 0){
                             $stars[$rat]= $row['count'];
@@ -107,8 +119,10 @@ if(isset($_POST["review_action"])){
             ';
 
             // Consulta para recuperar todas las reseñas del producto.
-            $product_query = "SELECT * FROM reviews WHERE product_id='$p_id'";
-            $run_query = mysqli_query($con,$product_query);
+            $product_stmt = mysqli_prepare($con, "SELECT * FROM reviews WHERE product_id=?");
+            mysqli_stmt_bind_param($product_stmt, "i", $p_id);
+            mysqli_stmt_execute($product_stmt);
+            $run_query = mysqli_stmt_get_result($product_stmt);
             if(mysqli_num_rows($run_query) > 0){
                 while($row = mysqli_fetch_array($run_query)){
                     $review_id = $row['review_id'];
@@ -117,12 +131,15 @@ if(isset($_POST["review_action"])){
                     $name = $row['name'];
                     $email = $row['email'];
                     $date = $row['datetime'];
+                    $name_safe = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+                    $review_safe = htmlspecialchars($review, ENT_QUOTES, 'UTF-8');
+                    $date_safe = htmlspecialchars($date, ENT_QUOTES, 'UTF-8');
                     $unstar = 5-$rating;
                     echo '
                     <li>
                         <div class="review-heading">
-                            <h5 class="name">'.$name.'</h5>
-                            <p class="date">'.$date.'</p>
+                            <h5 class="name">'.$name_safe.'</h5>
+                            <p class="date">'.$date_safe.'</p>
                             <div class="review-rating">';
                             $i=1;
                             while($i <= $rating){
@@ -139,7 +156,7 @@ if(isset($_POST["review_action"])){
                             echo'	</div>
                     </div>
                         <div class="review-body">
-                            <p>'.$review.'</p>
+                            <p>'.$review_safe.'</p>
                         </div>
                     </li>';
                 }
@@ -166,9 +183,17 @@ if(isset($_POST["review_action"])){
 
 // Si solo se necesita mostrar una vista corta de rating para el producto.
 if(isset($_POST["rating_reviews"])){
-    $p_id = $_POST["proId"]; 
-    $rating_query = "SELECT ROUND(AVG(rating),1) AS avg_rating, COUNT(*) AS count FROM reviews WHERE product_id='$p_id'";
-    $run_query = mysqli_query($con,$rating_query);
+    $p_id = filter_var($_POST["proId"], FILTER_VALIDATE_INT);
+    if ($p_id === false) {
+        http_response_code(400);
+        exit('Invalid product identifier.');
+    }
+    $rating_stmt = mysqli_prepare($con,
+        "SELECT ROUND(AVG(rating),1) AS avg_rating, COUNT(*) AS count FROM reviews WHERE product_id=?"
+    );
+    mysqli_stmt_bind_param($rating_stmt, "i", $p_id);
+    mysqli_stmt_execute($rating_stmt);
+    $run_query = mysqli_stmt_get_result($rating_stmt);
     $row = mysqli_fetch_array($run_query);
     $r_count = $row['count'];
     if($row > 0){
