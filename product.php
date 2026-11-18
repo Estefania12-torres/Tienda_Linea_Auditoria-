@@ -411,5 +411,6 @@ include "header.php";
 <?php
 include "newslettter.php";
 include "footer.php";
-
+include "newslettter.php";
+include "footer.php";
 ?>
