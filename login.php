@@ -97,21 +97,10 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
 			);
 			mysqli_stmt_bind_param($wishlist_stmt, "is", $uid, $ip_add);
 			if($cart_ok){
+				mysqli_stmt_execute($wishlist_stmt);
 				echo "login_success";
-				$BackToMyPage = $_SERVER['HTTP_REFERER'];
-				if(mysqli_stmt_execute($wishlist_stmt)){
-						if(!isset($BackToMyPage)) {
-							header('Location: '.$BackToMyPage);
-							echo"<script type='text/javascript'>
-						
-						</script>";
-						} else {
-							echo "<script> location.href='index.php'; </script>" ;// Página por defecto.
-						} 
-				}
+				exit;
 			}
-
-            exit;
 
 		}else{
                 // Si no encontró al usuario normal, intenta iniciar sesión como administrador.
@@ -138,9 +127,8 @@ if(isset($_POST["email"]) && isset($_POST["password"])){
                 $_SESSION["name"] = $admin["admin_name"];
                 $ip_add = getenv("REMOTE_ADDR");
 
-                // Si el login fue exitoso, responde con login_success y redirige al panel del admin.
-                echo "login_success";
-                echo "<script> location.href='admin/add_products.php'; </script>";
+                // Si el login fue exitoso, responde con login_success_admin y redirige al panel del admin.
+                echo "login_success_admin";
                 exit;
 
             }else{

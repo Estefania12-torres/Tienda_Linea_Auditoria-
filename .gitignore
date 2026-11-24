@@ -1,3 +1,4 @@
 /.env
+xampp-control.exe
 /.env.*
 !/.env.example

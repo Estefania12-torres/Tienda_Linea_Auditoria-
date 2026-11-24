@@ -184,7 +184,7 @@ white-space: nowrap;
 		<i class="fa fa-long-arrow-right m-l-5"></i>
 		</a>
 		</div>
-        <div class="alert alert-danger"><h4 id="e_msg"></h4></div>
+        <div class="alert alert-danger" style="display:none;"><h4 id="e_msg"></h4></div>
 		</form>
 		</div>
         <div class="login100-more" style="background-image: url('img/slider_1.jpg');"></div>

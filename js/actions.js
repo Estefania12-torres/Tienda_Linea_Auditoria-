@@ -196,12 +196,16 @@ $(document).ready(function(){
 			method:	"POST",
 			data	:$("#login").serialize(),
 			success	:function(data){
-				if(data == "login_success"){
-					
+				var res = data ? data.trim() : "";
+				if(res.indexOf("login_success_admin") !== -1 || res.indexOf("admin/add_products.php") !== -1){
+					window.location.href = "admin/admin/index.php";
+					$("#desc").html("Logged in successfully");
+					launch_toast();
+				}else if(res == "login_success" || res.indexOf("login_success") !== -1){
 					window.location.href = "index.php";
 					$("#desc").html("Logged in successfully");
 					launch_toast();
-				}else if(data == "cart_login"){
+				}else if(res == "cart_login" || res.indexOf("cart_login") !== -1){
 					window.location.href = "cart.php";
 					$("#desc").html("Logged in successfully");
 					launch_toast();
@@ -209,6 +213,7 @@ $(document).ready(function(){
 					$("#desc").html(data);
 					launch_toast();
 					$("#e_msg").html(data);
+					$("#e_msg").parent().show();
 					$(".overlay").hide();
 				}
 			}

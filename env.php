@@ -44,8 +44,9 @@ function load_project_env()
 
         if (getenv($name) === false) {
             putenv($name . '=' . $value);
-            $_ENV[$name] = $value;
         }
+        $_ENV[$name] = $value;
+        $_SERVER[$name] = $value;
     }
 }
 
@@ -53,6 +54,12 @@ function project_env($name)
 {
     load_project_env();
     $value = getenv($name);
+    if ($value === false && isset($_ENV[$name])) {
+        $value = $_ENV[$name];
+    }
+    if ($value === false && isset($_SERVER[$name])) {
+        $value = $_SERVER[$name];
+    }
 
     if ($value === false) {
         throw new RuntimeException('Required environment variable is not set: ' . $name);
