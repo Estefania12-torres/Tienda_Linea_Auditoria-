@@ -1,0 +1,20 @@
+# .dockerignore - Exclusión de archivos confidenciales y no productivos
+.env
+.env.*
+.env.example
+.git
+.github
+.gitignore
+.gitattributes
+*.md
+*.docx
+ape2_dump.txt
+generate_evidences.py
+database/*.sql
+*.sql
+screenshot/
+evidencias/
+APE-02/
+Repositorio-GitHub - APE-02/
+.dockerignore
+Dockerfile

